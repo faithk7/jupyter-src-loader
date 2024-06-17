@@ -32,6 +32,35 @@ function activate(context) {
                     const range = new vscode.Range(0, 0, cell.document.lineCount, 0);
                     edits.replace(cell.document.uri, range, uncommentedLine);
                 }
+                // Identify user-custom packages
+                const lines = cellText.split('\n');
+                let start = 0;
+                while (start < lines.length) {
+                    const chunk = [];
+                    while (start < lines.length && lines[start].startsWith('import') || lines[start].startsWith('from')) {
+                        chunk.push(lines[start]);
+                        start++;
+                    }
+                    if (chunk.length > 0) {
+                        const firstImport = chunk[0].split(' ')[1];
+                        try {
+                            const packagePath = require.resolve(firstImport);
+                            if (!packagePath.includes('anaconda3')) {
+                                chunk.length = 0; // Eliminate the whole chunk
+                            }
+                        }
+                        catch (error) {
+                            console.error(`Error resolving package ${firstImport}:`, error);
+                        }
+                    }
+                    start++;
+                }
+                // Join the modified lines and update the cell
+                const modifiedCellText = lines.join('\n');
+                if (modifiedCellText !== cellText) {
+                    const range = new vscode.Range(0, 0, cell.document.lineCount, 0);
+                    edits.replace(cell.document.uri, range, modifiedCellText);
+                }
             }
         }
         yield vscode.workspace.applyEdit(edits);
@@ -45,7 +74,7 @@ function activate(context) {
                 }
             }
         }
-        vscode.window.showInformationMessage('Magic commands loaded successfully.');
+        vscode.window.showInformationMessage('Magic commands loaded and user-custom packages removed successfully.');
     }));
     context.subscriptions.push(disposable);
 }
