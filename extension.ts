@@ -1,7 +1,6 @@
 import * as vscode from 'vscode';
 
 
-
 export function activate(context: vscode.ExtensionContext) {
 	let disposable = vscode.commands.registerCommand('extension.loadMagicCommands', async () => {
 		const editor = vscode.window.activeNotebookEditor;
@@ -28,34 +27,34 @@ export function activate(context: vscode.ExtensionContext) {
 				}
 
 				// Identify user-custom packages
-				const lines = cellText.split('\n');
-				let start = 0;
-				while (start < lines.length) {
-					const chunk = [];
-					while (start < lines.length && (lines[start].startsWith('import') || lines[start].startsWith('from'))) {
-						chunk.push(lines[start]);
-						start++;
-					}
-					if (chunk.length > 0) {
-						const firstImport = chunk[0].split(' ')[1]; // e.g., import numpy | from pandas import ...
-						try {
-							const packagePath = require.resolve(firstImport);
-							if (!packagePath.includes('anaconda3')) {
-								chunk.length = 0; // Eliminate the whole chunk
-							}
-						} catch (error) {
-							console.error(`Error resolving package ${firstImport}:`, error);
-						}
-					}
-					start++;
-				}
+				// const lines = cellText.split('\n');
+				// let start = 0;
+				// while (start < lines.length) {
+				// 	const chunk = [];
+				// 	while (start < lines.length && (lines[start].startsWith('import') || lines[start].startsWith('from'))) {
+				// 		chunk.push(lines[start]);
+				// 		start++;
+				// 	}
+				// 	if (chunk.length > 0) {
+				// 		const firstImport = chunk[0].split(' ')[1]; // e.g., import numpy | from pandas import ...
+				// 		try {
+				// 			const packagePath = require.resolve(firstImport);
+				// 			if (!packagePath.includes('anaconda3')) {
+				// 				chunk.length = 0; // Eliminate the whole chunk
+				// 			}
+				// 		} catch (error) {
+				// 			console.error(`Error resolving package ${firstImport}:`, error);
+				// 		}
+				// 	}
+				// 	start++;
+				// }
 
-				// Join the modified lines and update the cell
-				const modifiedCellText = lines.join('\n');
-				if (modifiedCellText !== cellText) {
-					const range = new vscode.Range(0, 0, cell.document.lineCount, 0);
-					edits.replace(cell.document.uri, range, modifiedCellText);
-				}
+				// // Join the modified lines and update the cell
+				// const modifiedCellText = lines.join('\n');
+				// if (modifiedCellText !== cellText) {
+				// 	const range = new vscode.Range(0, 0, cell.document.lineCount, 0);
+				// 	edits.replace(cell.document.uri, range, modifiedCellText);
+				// }
 			}
 		}
 
