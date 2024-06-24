@@ -37,12 +37,12 @@ function activate(context) {
                 let start = 0;
                 while (start < lines.length) {
                     const chunk = [];
-                    while (start < lines.length && lines[start].startsWith('import') || lines[start].startsWith('from')) {
+                    while (start < lines.length && (lines[start].startsWith('import') || lines[start].startsWith('from'))) {
                         chunk.push(lines[start]);
                         start++;
                     }
                     if (chunk.length > 0) {
-                        const firstImport = chunk[0].split(' ')[1];
+                        const firstImport = chunk[0].split(' ')[1]; // e.g., import numpy | from pandas import ...
                         try {
                             const packagePath = require.resolve(firstImport);
                             if (!packagePath.includes('anaconda3')) {
