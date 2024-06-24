@@ -10,6 +10,8 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.deactivate = exports.activate = void 0;
+const child_process_1 = require("child_process");
+const path = require("path");
 const vscode = require("vscode");
 function activate(context) {
     let disposable = vscode.commands.registerCommand('extension.loadMagicCommands', () => __awaiter(this, void 0, void 0, function* () {
@@ -18,6 +20,7 @@ function activate(context) {
             vscode.window.showErrorMessage('No active notebook editor found.');
             return;
         }
+        const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
         const notebook = editor.notebook;
         if (notebook.notebookType !== 'jupyter-notebook') {
             vscode.window.showErrorMessage('The active editor is not a Jupyter Notebook.');
@@ -32,38 +35,10 @@ function activate(context) {
                     const range = new vscode.Range(0, 0, cell.document.lineCount, 0);
                     edits.replace(cell.document.uri, range, uncommentedLine);
                 }
-                // Identify user-custom packages
-                const lines = cellText.split('\n');
-                let start = 0;
-                while (start < lines.length) {
-                    const chunk = [];
-                    while (start < lines.length && (lines[start].startsWith('import') || lines[start].startsWith('from'))) {
-                        chunk.push(lines[start]);
-                        start++;
-                    }
-                    if (chunk.length > 0) {
-                        const firstImport = chunk[0].split(' ')[1]; // e.g., import numpy | from pandas import ...
-                        try {
-                            const packagePath = require.resolve(firstImport);
-                            if (!packagePath.includes('anaconda3')) {
-                                chunk.length = 0; // Eliminate the whole chunk
-                            }
-                        }
-                        catch (error) {
-                            console.error(`Error resolving package ${firstImport}:`, error);
-                        }
-                    }
-                    start++;
-                }
-                // Join the modified lines and update the cell
-                const modifiedCellText = lines.join('\n');
-                if (modifiedCellText !== cellText) {
-                    const range = new vscode.Range(0, 0, cell.document.lineCount, 0);
-                    edits.replace(cell.document.uri, range, modifiedCellText);
-                }
             }
         }
         yield vscode.workspace.applyEdit(edits);
+        
         for (const cell of notebook.getCells()) {
             if (cell.kind === vscode.NotebookCellKind.Code) {
                 try {
@@ -74,6 +49,64 @@ function activate(context) {
                 }
             }
         }
+        
+        const checkPackage = (pkg) => {
+            const scriptPath = path.join(context.extensionPath, 'scripts', 'check_package.py');
+            console.log(scriptPath);
+            return new Promise((resolve) => {
+                (0, child_process_1.exec)(`python "${scriptPath}" ${pkg}`, (error, stdout) => {
+                    if (error) {
+                        resolve(false);
+                    }
+                    else {
+                        resolve(stdout.trim() === 'True');
+                    }
+                });
+            });
+        };
+        const processChunks = (cell) => __awaiter(this, void 0, void 0, function* () {
+            const cellText = cell.document.getText();
+            const lines = cellText.split('\n');
+            let newLines = [];
+            let chunk = [];
+            for (let line of lines) {
+                if (line.startsWith('import') || line.startsWith('from')) {
+                    chunk.push(line);
+                }
+                else {
+                    if (chunk.length > 0) {
+                        const firstImport = chunk[0].split(' ')[1];
+                        const isUserCustom = yield checkPackage(firstImport);
+                        if (!isUserCustom) {
+                            newLines.push(...chunk);
+                        }
+                        chunk = [];
+                    }
+                    newLines.push(line);
+                }
+            }
+            // Check the last chunk
+            if (chunk.length > 0) {
+                const firstImport = chunk[0].split(' ')[1];
+                const isUserCustom = yield checkPackage(firstImport);
+                if (!isUserCustom) {
+                    newLines.push(...chunk);
+                }
+            }
+            const modifiedCellText = newLines.join('\n');
+            if (modifiedCellText !== cellText) {
+                const range = new vscode.Range(0, 0, cell.document.lineCount, 0);
+                edits.replace(cell.document.uri, range, modifiedCellText);
+            }
+        });
+        for (const cell of notebook.getCells()) {
+            if (cell.kind === vscode.NotebookCellKind.Code) {
+                
+                yield processChunks(cell);
+            }
+        }
+        
+        yield vscode.workspace.applyEdit(edits);
         vscode.window.showInformationMessage('Magic commands loaded and user-custom packages removed successfully.');
     }));
     context.subscriptions.push(disposable);
