@@ -20,13 +20,25 @@ function activate(context) {
             vscode.window.showErrorMessage('No active notebook editor found.');
             return;
         }
-        const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
         const notebook = editor.notebook;
         if (notebook.notebookType !== 'jupyter-notebook') {
             vscode.window.showErrorMessage('The active editor is not a Jupyter Notebook.');
             return;
         }
         const edits = new vscode.WorkspaceEdit();
+        yield uncommentLoadMagicCommands(notebook, edits);
+        yield executeCells(notebook);
+        yield processCells(notebook, context, edits);
+        yield vscode.workspace.applyEdit(edits);
+        vscode.window.showInformationMessage('Magic commands loaded and user-custom packages removed successfully.');
+    }));
+    context.subscriptions.push(disposable);
+}
+exports.activate = activate;
+function deactivate() { }
+exports.deactivate = deactivate;
+function uncommentLoadMagicCommands(notebook, edits) {
+    return __awaiter(this, void 0, void 0, function* () {
         for (const cell of notebook.getCells()) {
             if (cell.kind === vscode.NotebookCellKind.Code) {
                 const cellText = cell.document.getText();
@@ -37,8 +49,10 @@ function activate(context) {
                 }
             }
         }
-        yield vscode.workspace.applyEdit(edits);
-        
+    });
+}
+function executeCells(notebook) {
+    return __awaiter(this, void 0, void 0, function* () {
         for (const cell of notebook.getCells()) {
             if (cell.kind === vscode.NotebookCellKind.Code) {
                 try {
@@ -49,69 +63,65 @@ function activate(context) {
                 }
             }
         }
-        
-        const checkPackage = (pkg) => {
-            const scriptPath = path.join(context.extensionPath, 'scripts', 'check_package.py');
-            console.log(scriptPath);
-            return new Promise((resolve) => {
-                (0, child_process_1.exec)(`python "${scriptPath}" ${pkg}`, (error, stdout) => {
-                    if (error) {
-                        resolve(false);
-                    }
-                    else {
-                        resolve(stdout.trim() === 'True');
-                    }
-                });
-            });
-        };
-        const processChunks = (cell) => __awaiter(this, void 0, void 0, function* () {
-            const cellText = cell.document.getText();
-            const lines = cellText.split('\n');
-            let newLines = [];
-            let chunk = [];
-            for (let line of lines) {
-                if (line.startsWith('import') || line.startsWith('from')) {
-                    chunk.push(line);
-                }
-                else {
-                    if (chunk.length > 0) {
-                        const firstImport = chunk[0].split(' ')[1];
-                        const isUserCustom = yield checkPackage(firstImport);
-                        if (!isUserCustom) {
-                            newLines.push(...chunk);
-                        }
-                        chunk = [];
-                    }
-                    newLines.push(line);
-                }
-            }
-            // Check the last chunk
-            if (chunk.length > 0) {
-                const firstImport = chunk[0].split(' ')[1];
-                const isUserCustom = yield checkPackage(firstImport);
-                if (!isUserCustom) {
-                    newLines.push(...chunk);
-                }
-            }
-            const modifiedCellText = newLines.join('\n');
-            if (modifiedCellText !== cellText) {
-                const range = new vscode.Range(0, 0, cell.document.lineCount, 0);
-                edits.replace(cell.document.uri, range, modifiedCellText);
-            }
-        });
+    });
+}
+function processCells(notebook, context, edits) {
+    return __awaiter(this, void 0, void 0, function* () {
         for (const cell of notebook.getCells()) {
             if (cell.kind === vscode.NotebookCellKind.Code) {
-                
-                yield processChunks(cell);
+                yield processChunks(cell, context, edits);
             }
         }
-        
-        yield vscode.workspace.applyEdit(edits);
-        vscode.window.showInformationMessage('Magic commands loaded and user-custom packages removed successfully.');
-    }));
-    context.subscriptions.push(disposable);
+    });
 }
-exports.activate = activate;
-function deactivate() { }
-exports.deactivate = deactivate;
+function processChunks(cell, context, edits) {
+    return __awaiter(this, void 0, void 0, function* () {
+        const cellText = cell.document.getText();
+        const lines = cellText.split('\n');
+        let newLines = [];
+        let chunk = [];
+        for (let line of lines) {
+            if (line.startsWith('import') || line.startsWith('from')) {
+                chunk.push(line);
+            }
+            else {
+                if (chunk.length > 0) {
+                    const firstImport = chunk[0].split(' ')[1];
+                    const isUserCustom = yield checkPackage(firstImport, context);
+                    if (!isUserCustom) {
+                        newLines.push(...chunk);
+                    }
+                    chunk = [];
+                }
+                newLines.push(line);
+            }
+        }
+        // Check the last chunk
+        if (chunk.length > 0) {
+            const firstImport = chunk[0].split(' ')[1];
+            const isUserCustom = yield checkPackage(firstImport, context);
+            if (!isUserCustom) {
+                newLines.push(...chunk);
+            }
+        }
+        const modifiedCellText = newLines.join('\n');
+        if (modifiedCellText !== cellText) {
+            const range = new vscode.Range(0, 0, cell.document.lineCount, 0);
+            edits.replace(cell.document.uri, range, modifiedCellText);
+        }
+    });
+}
+function checkPackage(pkg, context) {
+    const scriptPath = path.join(context.extensionPath, 'scripts', 'check_package.py');
+    return new Promise((resolve) => {
+        (0, child_process_1.exec)(`python "${scriptPath}" ${pkg}`, (error, stdout) => {
+            if (error) {
+                resolve(false);
+            }
+            else {
+                resolve(stdout.trim() === 'True');
+            }
+        });
+    });
+}
 //# sourceMappingURL=extension.js.map
