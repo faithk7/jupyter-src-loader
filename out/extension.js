@@ -25,11 +25,13 @@ function activate(context) {
             vscode.window.showErrorMessage('The active editor is not a Jupyter Notebook.');
             return;
         }
-        const edits = new vscode.WorkspaceEdit();
-        yield uncommentLoadMagicCommands(notebook, edits);
+        const editsUncomment = new vscode.WorkspaceEdit();
+        yield uncommentLoadMagicCommands(notebook, editsUncomment);
+        yield vscode.workspace.applyEdit(editsUncomment);
         yield executeCells(notebook);
-        yield processCells(notebook, context, edits);
-        yield vscode.workspace.applyEdit(edits);
+        const editsRemoveCustomPackages = new vscode.WorkspaceEdit();
+        yield processCells(notebook, context, editsRemoveCustomPackages);
+        yield vscode.workspace.applyEdit(editsRemoveCustomPackages);
         vscode.window.showInformationMessage('Magic commands loaded and user-custom packages removed successfully.');
     }));
     context.subscriptions.push(disposable);

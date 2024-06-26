@@ -16,13 +16,16 @@ export function activate(context: vscode.ExtensionContext) {
             return;
         }
 
-        const edits = new vscode.WorkspaceEdit();
+        const editsUncomment = new vscode.WorkspaceEdit();
 
-        await uncommentLoadMagicCommands(notebook, edits);
+        await uncommentLoadMagicCommands(notebook, editsUncomment);
+        await vscode.workspace.applyEdit(editsUncomment);
+
         await executeCells(notebook);
-        await processCells(notebook, context, edits);
 
-        await vscode.workspace.applyEdit(edits);
+        const editsRemoveCustomPackages = new vscode.WorkspaceEdit();
+        await processCells(notebook, context, editsRemoveCustomPackages);
+        await vscode.workspace.applyEdit(editsRemoveCustomPackages);
 
         vscode.window.showInformationMessage('Magic commands loaded and user-custom packages removed successfully.');
     });
