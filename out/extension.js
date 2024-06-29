@@ -28,7 +28,7 @@ function activate(context) {
         const editsUncomment = new vscode.WorkspaceEdit();
         yield uncommentLoadMagicCommands(notebook, editsUncomment);
         yield vscode.workspace.applyEdit(editsUncomment);
-        yield executeCells(notebook);
+        yield executeCells(notebook); // we only execute the cells that have the %load magic command at the beginning
         const editsRemoveCustomPackages = new vscode.WorkspaceEdit();
         yield processCells(notebook, context, editsRemoveCustomPackages);
         yield vscode.workspace.applyEdit(editsRemoveCustomPackages);
@@ -57,11 +57,14 @@ function executeCells(notebook) {
     return __awaiter(this, void 0, void 0, function* () {
         for (const cell of notebook.getCells()) {
             if (cell.kind === vscode.NotebookCellKind.Code) {
-                try {
-                    yield vscode.commands.executeCommand('notebook.cell.execute', { start: cell.index, end: cell.index + 1 });
-                }
-                catch (error) {
-                    // console.error(`Error executing cell ${cell.index}:`, error);
+                const firstLine = cell.document.getText().split('\n')[0].trim();
+                if (firstLine.startsWith('%load')) {
+                    try {
+                        yield vscode.commands.executeCommand('notebook.cell.execute', { start: cell.index, end: cell.index + 1 });
+                    }
+                    catch (error) {
+                        console.error(`Error executing cell ${cell.index}:`, error);
+                    }
                 }
             }
         }
